@@ -52,7 +52,7 @@ class TransactionRepository
     public function detail($id)
     {
         try {
-            return Transaction::with(['operator', 'outlet', 'transaction_detail', 'transaction_detail.product'])->where('id', $id)->firstOrFail();
+            return Transaction::with(['operator', 'outlet', 'transaction_detail', 'transaction_detail.product', 'transaction_detail.product.unit'])->where('id', $id)->firstOrFail();
         } catch(ModelNotFoundException $e){
             throw new Exception("Not Found", 404); report($e); return false;
         } catch (\Exception $e) {
