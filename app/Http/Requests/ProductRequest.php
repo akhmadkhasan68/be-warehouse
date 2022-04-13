@@ -39,7 +39,9 @@ class ProductRequest extends FormRequest
             ],
             'name' => [
                 'required',
-                Rule::unique("products")
+                Rule::unique("products")->when($id != null, function($q) use($id){
+                    $q->ignore($id);
+                })
             ],
             // 'quantity' => [
             //     'required',

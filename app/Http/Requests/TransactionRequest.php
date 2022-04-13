@@ -35,7 +35,9 @@ class TransactionRequest extends FormRequest
                 Rule::in(Operator::all()->pluck('id'))
             ],
             'outlet_id' => [
-                'required',
+                Rule::requiredIf(function() use($status){
+                    return $status == "out";
+                }),
                 Rule::in(Outlet::all()->pluck('id'))
             ],
             'date' => [

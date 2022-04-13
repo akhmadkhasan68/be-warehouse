@@ -8,6 +8,15 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class OutletRepository
 {
+    public function index()
+    {
+        try {
+            return Outlet::with(['transactions'])->get();
+        } catch (\Exception $e) {
+            throw $e; report($e); return false;
+        }
+    }
+    
     public function paginate($request)
     {
         try {

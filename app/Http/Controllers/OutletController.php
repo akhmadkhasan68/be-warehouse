@@ -15,7 +15,17 @@ class OutletController extends Controller
         $this->outletRepository = $outletRepository;
     }
 
-    public function index(Request $request)
+    public function index()
+    {
+        try {
+            $data = $this->outletRepository->index();
+            return response()->success($data, "OK");
+        } catch (\Exception $e) {
+            return response()->error($e->getMessage(), $e->getCode());
+        }
+    }
+    
+    public function paginate(Request $request)
     {
         try {
             $data = $this->outletRepository->paginate($request);

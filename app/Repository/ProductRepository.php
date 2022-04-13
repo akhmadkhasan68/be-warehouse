@@ -32,6 +32,17 @@ class ProductRepository
             throw $e; report($e); return false;
         }
     }
+    
+    public function detail($id)
+    {
+        try {
+            return Product::with(['category', 'unit', 'transaction_detail'])->findOrFail($id);
+        } catch(ModelNotFoundException $e){
+            throw new Exception("Not Found", 404); report($e); return false;
+        } catch (\Exception $e) {
+            throw $e; report($e); return false;
+        }
+    }
 
     public function get()
     {

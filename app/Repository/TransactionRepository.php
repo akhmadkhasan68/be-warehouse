@@ -22,7 +22,15 @@ class TransactionRepository
                 $q->when(!empty($keyword), function($q) use($keyword){
                     $q->where('id', $keyword);
                 });
+
+                $dateFrom = $request->{'date-from'};
+                $dateTo = $request->{'date-to'};
+                $q->when(!empty($dateFrom) && !empty($dateTo), function($q) use($dateFrom, $dateTo){
+                    $q->whereBetween('date', [$dateFrom, $dateTo]);
+                });
             });
+            $request->request->remove('date-from');
+            $request->request->remove('date-to');
 
             return DatatableTrait::make([
                 
@@ -98,6 +106,8 @@ class TransactionRepository
     {
         try {
             DB::beginTransaction();
+            $products = $request->products;
+
             $transaction = Transaction::findOrFail($id);
             $transaction->update([
                 'operator_id' => $request->operator_id,
@@ -105,29 +115,75 @@ class TransactionRepository
                 'date' => $request->date
             ]);
 
-            $products = $request->products;
+            //foreach request
             foreach ($products as $product) {
-                $transactionDetailData = [
-                    'product_id' => $product['product_id'],
-                    'avg_price' => $product['avg_price'],
-                    'quantity' => $product['quantity'],
-                ];
-                if($request->status == self::TRANSACTION_IN) $transactionDetailData = array_merge($transactionDetailData, ["price" => $product['price']]);
-
-                $transactionDetailUpdate = TransactionDetail::where([
+                $checkTransactionDetail = TransactionDetail::where([
                     'transaction_id' => $transaction->id,
                     'product_id' => $product['product_id']
-                ])->firstOrFail();
-                $transactionDetailUpdate->update($transactionDetailData);
+                ])->first();
 
-                if($transaction->status == self::TRANSACTION_IN){
-                    Product::findOrFail($product['product_id'])->decrement('quantity', $transactionDetailUpdate->original_quantity);
-                    Product::findOrFail($product['product_id'])->increment('quantity', $product['quantity']);
-                }else{
-                    Product::findOrFail($product['product_id'])->increment('quantity', $transactionDetailUpdate->original_quantity);
-                    Product::findOrFail($product['product_id'])->decrement('quantity', $product['quantity']);
+                if($checkTransactionDetail) //update
+                {
+                    $transactionDetailData = [
+                        'product_id' => $product['product_id'],
+                        'avg_price' => $product['avg_price'],
+                        'quantity' => $product['quantity'],
+                    ];
+                    if($request->status == self::TRANSACTION_IN) $transactionDetailData = array_merge($transactionDetailData, ["price" => $product['price']]);
+    
+                    $transactionDetailUpdate = TransactionDetail::where([
+                        'transaction_id' => $transaction->id,
+                        'product_id' => $product['product_id']
+                    ])->firstOrFail();
+                    $transactionDetailUpdate->update($transactionDetailData);
+    
+                    if($transaction->status == self::TRANSACTION_IN){
+                        Product::findOrFail($product['product_id'])->decrement('quantity', $transactionDetailUpdate->original_quantity);
+                        Product::findOrFail($product['product_id'])->increment('quantity', $product['quantity']);
+                    }else{
+                        Product::findOrFail($product['product_id'])->increment('quantity', $transactionDetailUpdate->original_quantity);
+                        Product::findOrFail($product['product_id'])->decrement('quantity', $product['quantity']);
+                    }
+                    $transactionDetailUpdate->update(['original_quantity' => $product['quantity']]);
                 }
-                $transactionDetailUpdate->update(['original_quantity' => $product['quantity']]);
+                else //create
+                {
+                    $transactionDetailData = [
+                        'transaction_id' => $transaction->id,
+                        'product_id' => $product['product_id'],
+                        'avg_price' => $product['avg_price'],
+                        'quantity' => $product['quantity'],
+                        'original_quantity' => $product['quantity'],
+                    ];
+                    if($request->status == self::TRANSACTION_IN) $transactionDetailData = array_merge($transactionDetailData, ["price" => $product['price']]);
+    
+                    TransactionDetail::create($transactionDetailData);
+                    if($request->status == self::TRANSACTION_IN){
+                        Product::find($product['product_id'])->increment('quantity', $product['quantity']);
+                    }else{
+                        Product::find($product['product_id'])->decrement('quantity', $product['quantity']);
+                    }
+                }
+            }
+
+            $cekProducts = TransactionDetail::where('transaction_id', $id)->pluck('product_id')->toArray();
+            $productRequest = array_column($products, 'product_id');
+            $deletedProducts = array_diff($cekProducts,$productRequest);
+
+            //foreach deleted data
+            foreach ($deletedProducts as $product) {
+                $transactionDetailUpdate = TransactionDetail::with(['transaction'])->where([
+                    'transaction_id' => $transaction->id,
+                    'product_id' => $product
+                ])->firstOrFail();
+
+                if($transactionDetailUpdate->transaction->status == self::TRANSACTION_IN){
+                    Product::find($product)->decrement('quantity', $transactionDetailUpdate->quantity);
+                }else{
+                    Product::find($product)->increment('quantity', $transactionDetailUpdate->quantity);
+                }
+
+                $transactionDetailUpdate->delete();
             }
 
             DB::commit();

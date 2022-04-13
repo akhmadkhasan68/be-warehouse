@@ -34,6 +34,16 @@ class ProductController extends Controller
             return response()->error($e->getMessage(), $e->getCode());
         }
     }
+    
+    public function detail($id)
+    {
+        try {
+            $data = $this->productRepository->detail($id);
+            return response()->success($data, "OK");
+        } catch (\Exception $e) {
+            return response()->error($e->getMessage(), $e->getCode());
+        }
+    }
 
     public function create(ProductRequest $request)
     {
